@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kitty的专属菜单</title>
+    <style>
+        :root {
+            --primary-color: #07C160; /* 微信绿 */
+            --bg-color: #F7F7F7;
+            --card-bg: #FFFFFF;
+            --text-main: #333333;
+            --text-sub: #888888;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            padding-bottom: 80px; /* 留出底部按钮空间 */
+        }
+        header {
+            background-color: var(--card-bg);
+            text-align: center;
+            padding: 20px 0;
+            font-size: 20px;
+            font-weight: bold;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .container {
+            padding: 15px;
+        }
+        .category-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--text-sub);
+            margin: 20px 0 10px 5px;
+        }
+        .dish-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+        .dish-item {
+            background-color: var(--card-bg);
+            padding: 12px 5px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            border: 1px solid #EBEBEB;
+            transition: all 0.2s;
+        }
+        .dish-item.selected {
+            background-color: #E1F8EA;
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+            font-weight: bold;
+        }
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: var(--card-bg);
+            padding: 15px 20px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+        .selected-count {
+            font-size: 16px;
+        }
+        .selected-count span {
+            color: var(--primary-color);
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .submit-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        /* 弹窗样式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: var(--card-bg);
+            width: 80%;
+            max-width: 320px;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+        }
+        .final-list {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px 0;
+            max-height: 50vh;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .final-list li {
+            padding: 8px 0;
+            border-bottom: 1px dashed #eee;
+            font-size: 15px;
+        }
+        .close-btn {
+            background-color: #f1f1f1;
+            color: var(--text-main);
+            border: none;
+            padding: 10px 0;
+            width: 100%;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>Kitty的私人小食堂 🐾</header>
+
+    <div class="container" id="menu-container">
+        </div>
+
+    <div class="bottom-bar">
+        <div class="selected-count">已选：<span id="count">0</span> 个菜</div>
+        <button class="submit-btn" onclick="generateMenu()">生成菜单</button>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+        <div class="modal-content">
+            <div class="modal-title">🎉 今日定制菜单</div>
+            <ul class="final-list" id="final-list"></ul>
+            <button class="close-btn" onclick="closeModal()">太棒了，就吃这些！</button>
+        </div>
+    </div>
+
+    <script>
+        // 你的拿手菜数据（已分类）
+        const menuData = {
+            "🍖 无肉不欢": [
+                "青椒酿肉", "辣椒炒肉", "黄焖鸡", "葱炒牛肉", "洋葱炒牛肉", 
+                "三杯鸡", "辣子鸡", "牛腩煲", "蒸鸡", "炒鸡", "咖喱鸡", 
+                "咸蛋黄鸡翅", "可乐鸡翅", "红烧肉", "回锅肉", "糖醋排骨", "红烧排骨", "肉末茄子"
+            ],
+            "🥬 清新素菜": [
+                "洋葱炒蛋", "手撕包菜", "炒空心菜", "西洋菜", "番薯叶", "菜心", "西蓝花", "茄子煲"
+            ],
+            "🥣 营养靓汤": [
+                "玉米排骨汤", "莲藕排骨汤"
+            ],
+            "🍚 饱腹主食": [
+                "扬州炒饭", "牛肉炒饭", "虾仁炒饭", "炒粉"
+            ]
+        };
+
+        let selectedDishes = new Set();
+
+        // 渲染菜单
+        const container = document.getElementById('menu-container');
+        for (const [category, dishes] of Object.entries(menuData)) {
+            // 添加分类标题
+            const title = document.createElement('div');
+            title.className = 'category-title';
+            title.innerText = category;
+            container.appendChild(title);
+
+            // 添加菜品网格
+            const grid = document.createElement('div');
+            grid.className = 'dish-grid';
+            
+            dishes.forEach(dish => {
+                const item = document.createElement('div');
+                item.className = 'dish-item';
+                item.innerText = dish;
+                
+                // 点击事件：选中/取消选中
+                item.onclick = function() {
+                    if (selectedDishes.has(dish)) {
+                        selectedDishes.delete(dish);
+                        item.classList.remove('selected');
+                    } else {
+                        selectedDishes.add(dish);
+                        item.classList.add('selected');
+                    }
+                    updateCount();
+                };
+                grid.appendChild(item);
+            });
+            container.appendChild(grid);
+        }
+
+        // 更新底部数量
+        function updateCount() {
+            document.getElementById('count').innerText = selectedDishes.size;
+        }
+
+        // 生成菜单并显示弹窗
+        function generateMenu() {
+            if (selectedDishes.size === 0) {
+                alert("请至少选择一道菜呀~");
+                return;
+            }
+            
+            const listElement = document.getElementById('final-list');
+            listElement.innerHTML = '';
+            
+            selectedDishes.forEach(dish => {
+                const li = document.createElement('li');
+                li.innerText = '✨ ' + dish;
+                listElement.appendChild(li);
+            });
+            
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        // 关闭弹窗
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
